@@ -48,27 +48,36 @@ func main() {
 		prevHash = template.PreviousHash
 
 		// difficulty target
-		difficulty, _ = strconv.ParseUint(template.Bits, 16, 32)
+		difficulty = convertDifficulty(template.Bits) //[ convertDifficulty returns template.Bits in some useful form - could be bigint ] 
 		
 		// height of the next block (number of blocks between genesis block and next block)
 		height = template.Height
 
+		
 		block, err = createBlock(prevHash, difficulty, height)
 		if err != nil {
 			log.Fatal(err)
 		}
 		
- 		//! difficulty = formatDiff(template.Bits)
-		log.Printf("Difficulty: %d\n", difficulty)
+		txs = getNetworkTransactions(???) // returns the transactions from the network
+		a := "PsVSrUSQf72X6GWFQXJPxR7WSAPVRb1gWx"
+		coinbaseTx, err := CreateCoinbaseTx(height, a, msg) // address conversion moved into CreateCoinbaseTx
+		if err != nil {
+			return nil, err
+		}
+		
+		txs.insert(coinbaseTx) // probably not valid go, but whatever is needed
+		
+		// we'll provide hints for this in the instructions
+		store := blockchain.BuildMerkleTreeStore(txs)
+		// Create a merkleroot from a list of 1 transaction.
+		merkleRoot := store[len(store)-1]
+		nonce := rand.Uint32()
+		block = CreateBlock(prevHash, merkleRoot, difficulty, nonce)
 
 		for attempts := 0; attempts < 10000; attempts++ {
-			// Increment the nonce in the block's header. It might overflow, but that's
-			// no big deal.
-			block.Header.Nonce += 1
-			// log.Printf("Trying nonce: %d\n", block.Header.Nonce)
-			
 			// Hash the header (BlockSha defined in btcwire/blockheader.go)
-			hash, _ := block.Header.BlockSha()
+			hash := block.Header.BlockSha()
 			hashCounter += 1
 			if lessThanDiff(hash, difficulty) {
 				// Success! Send the whole block
@@ -85,6 +94,11 @@ func main() {
 					hash, blockchain.ShaHashToBig(&hash).String())
 				break
 			}
+			
+			// Increment the nonce in the block's header. It might overflow, but that's
+			// no big deal.
+			block.Header.Nonce += 1
+			// log.Printf("Trying nonce: %d\n", block.Header.Nonce)
 		}
 	}
 }
