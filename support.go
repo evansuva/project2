@@ -198,8 +198,6 @@ func createMerkleRoot(txs []*btcwire.MsgTx) *btcwire.ShaHash {
 	}
 
 	store := blockchain.BuildMerkleTreeStore(txutil)
-	// Create a merkleroot from a list of 1 transaction.
 	merkleRoot := store[len(store)-1]
-
 	return merkleRoot
 }
