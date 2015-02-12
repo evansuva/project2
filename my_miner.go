@@ -8,12 +8,13 @@ import (
 
 	"github.com/PointCoin/btcjson"
 	"github.com/PointCoin/btcutil"
+	"github.com/PointCoin/btcwire"
 	"github.com/PointCoin/pointcoind/blockchain"
 )
 
 const (
-	rpcuser = "dave"        // This match your rpcuser and rpcpass in pointcoind.conf
-	rpcpass = "crypto$%bux" // and this too.
+	rpcuser = "user" // This match your rpcuser and rpcpass in pointcoind.conf
+	rpcpass = "pass" // and this too.
 	cert    = "/home/ubuntu/.pointcoind/rpc.cert"
 )
 
@@ -21,8 +22,9 @@ func main() {
 	// Setup the client using application constants, die horribly if there's a problem
 	client := setupRpcClient(cert, rpcuser, rpcpass)
 
-	// Declare variables to use in our main loop
+	// Declare important variables to use in our main loop
 	var template *btcjson.GetBlockTemplateResult
+	var block *btcwire.MsgBlock
 	var difficulty big.Int
 
 	var hashCounter int
@@ -48,27 +50,29 @@ func main() {
 		// difficulty target
 		difficulty = formatDiff(template.Bits)
 
-		// height of the next block (number of blocks between genesis block and next block)
+		// height of the next block (number of blocks between genesis block and the next block)
 		height = template.Height
 
-		txs := formatTransactions(template.Transactions) // returns the transactions from the network
+		// returns the transactions from the network
+		txs := formatTransactions(template.Transactions)
 		msg := "Your computing ID"
 		a := "PsVSrUSQf72X6GWFQXJPxR7WSAPVRb1gWx"
-		coinbaseTx := CreateCoinbaseTx(height, a, msg) // address conversion moved into CreateCoinbaseTx
+		coinbaseTx := CreateCoinbaseTx(height, a, msg)
 
+		// Pointcoind requires
 		txs = prepend(coinbaseTx.MsgTx(), txs)
 
 		merkleRoot := createMerkleRoot(txs)
 
 		nonce := rand.Uint32()
-		block := CreateBlock(prevHash, merkleRoot, difficulty, nonce, txs)
+		block = CreateBlock(prevHash, merkleRoot, difficulty, nonce, txs)
 
 		for attempts := 0; attempts < 10000; attempts++ {
 			// Hash the header (BlockSha defined in btcwire/blockheader.go)
 			hash, _ := block.Header.BlockSha()
 			hashCounter += 1
 			if lessThanDiff(hash, difficulty) {
-				// Success! Send the whole block
+				// Success! Send the block
 				log.Printf("Found good nonce [%d], attempt: [%d]\n", block.Header.Nonce, attempts)
 				// We use a btcutil block b/c SubmitBlock demands it.
 				err := client.SubmitBlock(btcutil.NewBlock(block), nil)
@@ -86,7 +90,6 @@ func main() {
 			// Increment the nonce in the block's header. It might overflow, but that's
 			// no big deal.
 			block.Header.Nonce += 1
-			// log.Printf("Trying nonce: %d\n", block.Header.Nonce)
 		}
 	}
 }
