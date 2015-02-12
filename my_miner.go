@@ -19,19 +19,20 @@ const (
 )
 
 func main() {
-	// Setup the client using application constants, die horribly if there's a problem
+	// Setup the client using application constants, fail horribly if there's a problem
 	client := setupRpcClient(cert, rpcuser, rpcpass)
 
 	// Declare important variables to use in our main loop
 	var template *btcjson.GetBlockTemplateResult
 	var block *btcwire.MsgBlock
+
+	// Needed for the block's header
 	var difficulty big.Int
+	var prevHash string
+	var height int64
 
 	var hashCounter int
 	var err error
-
-	var prevHash string
-	var height int64
 
 	for { // Loop forever
 		// Get a new block template from pointcoind.
