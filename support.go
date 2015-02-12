@@ -79,7 +79,7 @@ func standardCoinbaseScript(nextBlockHeight int64, extraNonce uint64, msg string
 // based on the passed block height to the provided address.  When the address
 // is nil, the coinbase transaction will instead be redeemable by anyone.
 //
-// See the comment for NewBlockTemplate for more information about why the nil
+// See the comment for NewBlockTemplate in  for more information about why the nil
 // address handling is useful.
 func createCoinbaseTx(coinbaseScript []byte, nextBlockHeight int64, addr btcutil.Address) (*btcutil.Tx, error) {
 	// Create the script to pay to the provided payment address if one was
@@ -174,9 +174,10 @@ func prepend(i *btcwire.MsgTx, l []*btcwire.MsgTx) []*btcwire.MsgTx {
 
 // createBlock creates a new block from the provided block template. The majority
 // of the work here is interpreting the information provided by the block template.
-func CreateBlock(prevHash string, merkleRoot *btcwire.ShaHash, difficulty big.Int, 
-                 nonce uint32, txs []*btcwire.MsgTx) *btcwire.MsgBlock {
+func CreateBlock(prevHash string, merkleRoot *btcwire.ShaHash, difficulty big.Int,
+	nonce uint32, txs []*btcwire.MsgTx) *btcwire.MsgBlock {
 	prevH, _ := btcwire.NewShaHashFromStr(prevHash)
+
 	d := blockchain.BigToCompact(&difficulty)
 	header := btcwire.NewBlockHeader(prevH, merkleRoot, d, nonce)
 
@@ -188,13 +189,19 @@ func CreateBlock(prevHash string, merkleRoot *btcwire.ShaHash, difficulty big.In
 	return msgBlock
 }
 
+// createMerkleRoot takes a list of transactions and produces the root
+// hash from that list. For simplicities sake it uses a library function
+// which requires input in a funky format and outputs the whole merkle
+// tree as a list...
 func createMerkleRoot(txs []*btcwire.MsgTx) *btcwire.ShaHash {
+	// Convert our txs into another tx type!
 	txutil := []*btcutil.Tx{}
 	for _, tx := range txs {
 		convtx := btcutil.NewTx(tx)
 		txutil = append(txutil, convtx)
 	}
 
+	// The merkle tree store is a reverse binary tree!
 	store := blockchain.BuildMerkleTreeStore(txutil)
 	merkleRoot := store[len(store)-1]
 	return merkleRoot
