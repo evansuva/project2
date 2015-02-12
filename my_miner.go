@@ -103,11 +103,3 @@ func main() {
 	}
 }
 
-// lessThanDiff returns true if the hash satisifies the target difficulty. That
-// is to say if the hash interpreted as a big integer is less than the required
-// difficulty then return true otherwise return false.
-func lessThanDiff(hash btcwire.ShaHash, difficulty big.Int) bool {
-	bigI := blockchain.ShaHashToBig(&hash)
-	return bigI.Cmp(&difficulty) <= 0
-}
-
