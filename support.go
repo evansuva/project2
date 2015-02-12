@@ -174,13 +174,11 @@ func prepend(i *btcwire.MsgTx, l []*btcwire.MsgTx) []*btcwire.MsgTx {
 
 // createBlock creates a new block from the provided block template. The majority
 // of the work here is interpreting the information provided by the block template.
-func CreateBlock(prevHash string, merkleRoot *btcwire.ShaHash, difficulty big.Int, nonce uint32, txs []*btcwire.MsgTx) *btcwire.MsgBlock {
-
+func CreateBlock(prevHash string, merkleRoot *btcwire.ShaHash, difficulty big.Int, 
+                 nonce uint32, txs []*btcwire.MsgTx) *btcwire.MsgBlock {
 	prevH, _ := btcwire.NewShaHashFromStr(prevHash)
-	startNonce := rand.Uint32()
-
 	d := blockchain.BigToCompact(&difficulty)
-	header := btcwire.NewBlockHeader(prevH, merkleRoot, d, startNonce)
+	header := btcwire.NewBlockHeader(prevH, merkleRoot, d, nonce)
 
 	msgBlock := btcwire.NewMsgBlock(header)
 	for _, tx := range txs {
