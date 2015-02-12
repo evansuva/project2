@@ -3,21 +3,21 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"log"
 	"math/big"
 	"math/rand"
 	"strconv"
 
+	"github.com/PointCoin/btcjson"
 	"github.com/PointCoin/btcnet"
+	"github.com/PointCoin/btcrpcclient"
 	"github.com/PointCoin/btcutil"
 	"github.com/PointCoin/btcwire"
 	"github.com/PointCoin/pointcoind/blockchain"
 	"github.com/PointCoin/pointcoind/txscript"
-	"github.com/PointCoin/btcrpcclient"
 )
-
-var coinbaseFlags = "/P2SH/btcd/"
 
 // setupRpcClient handles establishing a connection to the pointcoind using
 // the provided parameters. The function will throw an error if the full node
@@ -26,7 +26,8 @@ func setupRpcClient(cfile string, rpcuser string, rpcpass string) *btcrpcclient.
 	// Get the raw bytes of the certificate required by the rpcclient.
 	cert, err := ioutil.ReadFile(cfile)
 	if err != nil {
-		log.Fatal(err)
+		s := fmt.Sprintf("setupRpcClient failed with: %s\n", err)
+		log.Fatal(s)
 	}
 
 	// Setup the RPC client
@@ -42,16 +43,27 @@ func setupRpcClient(cfile string, rpcuser string, rpcpass string) *btcrpcclient.
 
 	client, err := btcrpcclient.New(connCfg, nil)
 	if err != nil {
-		log.Fatal(err)
+		s := fmt.Sprintf("setupRpcClient failed with: %s\n", err)
+		log.Fatal(s)
 	}
 
 	// Test the connection to see if we can really connect
 	_, err = client.GetInfo()
 	if err != nil {
 		log.Fatal(err)
+		s := fmt.Sprintf("setupRpcClient failed with: %s\n", err)
+		log.Fatal(s)
 	}
 
 	return client
+}
+
+// lessThanDiff returns true if the hash satisifies the target difficulty. That
+// is to say if the hash interpreted as a big integer is less than the required
+// difficulty then return true otherwise return false.
+func lessThanDiff(hash btcwire.ShaHash, difficulty big.Int) bool {
+	bigI := blockchain.ShaHashToBig(&hash)
+	return bigI.Cmp(&difficulty) <= 0
 }
 
 // standardCoinbaseScript returns a standard script suitable for use as the
@@ -106,14 +118,26 @@ func createCoinbaseTx(coinbaseScript []byte, nextBlockHeight int64, addr btcutil
 	return btcutil.NewTx(tx), nil
 }
 
-// 
-func CreateCoinbaseTx(nextBlockHeight int64, addr btcutil.Address, msg string) (*btcutil.Tx, error) {
+//
+func CreateCoinbaseTx(nextBlockHeight int64, a string, msg string) *btcutil.Tx {
 	n := uint64(rand.Uint32())
 	script, err := standardCoinbaseScript(nextBlockHeight, n, msg)
 	if err != nil {
-		return nil, err
+		s := fmt.Sprintf("CreateCoinbaseTx failed with: %s\n", err)
+		log.Fatal(s)
 	}
-	return createCoinbaseTx(script, nextBlockHeight, addr)
+	addr, err := btcutil.DecodeAddress(a, &btcnet.MainNetParams)
+	if err != nil {
+		s := fmt.Sprintf("CreateCoinbaseTx failed with: %s\n", err)
+		log.Fatal(s)
+	}
+
+	tx, err := createCoinbaseTx(script, nextBlockHeight, addr)
+	if err != nil {
+		s := fmt.Sprintf("CreateCoinbaseTx failed with: %s\n", err)
+		log.Fatal(s)
+	}
+	return tx
 }
 
 // foramtDiff converts the current blockchain difficulty from the format provided
@@ -124,44 +148,58 @@ func formatDiff(bits string) big.Int {
 	if err != nil {
 		log.Fatal(err) // This should not fail, so die horribly if it does
 	}
-	
- 	// Then into a big.Int
+
+	// Then into a big.Int
 	return *blockchain.CompactToBig(uint32(b))
+}
+
+// formatTransactions converts a list of btcjson transactions into btcwire transactions
+// so that we can use them in a new block.
+func formatTransactions(txs []btcjson.GetBlockTemplateResultTx) []*btcwire.MsgTx {
+	msgtxs := []*btcwire.MsgTx{}
+	return msgtxs
+}
+
+// Prepend adds i to the front of l.
+func prepend(i *btcwire.MsgTx, l []*btcwire.MsgTx) []*btcwire.MsgTx {
+
+	lst := []*btcwire.MsgTx{}
+	lst = append(lst, i)
+	for _, elem := range l {
+		lst = append(lst, elem)
+	}
+
+	return lst
 }
 
 // createBlock creates a new block from the provided block template. The majority
 // of the work here is interpreting the information provided by the block template.
-func createBlock(prevHash string, difficulty uint64, height int64) (*btcwire.MsgBlock, error) {
-	
-	// TODO handle addr
-	// A hardcoded address to send mined coins to.
-	a := "PsVSrUSQf72X6GWFQXJPxR7WSAPVRb1gWx"
-	addr, err := btcutil.DecodeAddress(a, &btcnet.MainNetParams)
-
-	// NOTICE
-	msg := "Take care of your cents; PointCoins will take care of themselves."
-
-	// Use supporting functions to create a CoinbaseTx
-	coinbaseTx, err := CreateCoinbaseTx(height, addr, msg)
-	if err != nil {
-		return nil, err
-	}
-
-	// NOTICE
-	txs := []*btcutil.Tx{coinbaseTx}
-
-	// The last element in the array is the root.
-	store := blockchain.BuildMerkleTreeStore(txs)
-	// Create a merkleroot from a list of 1 transaction.
-	merkleRoot := store[len(store)-1]
+func CreateBlock(prevHash string, merkleRoot *btcwire.ShaHash, difficulty big.Int, nonce uint32, txs []*btcwire.MsgTx) *btcwire.MsgBlock {
 
 	prevH, _ := btcwire.NewShaHashFromStr(prevHash)
 	startNonce := rand.Uint32()
 
-	header := btcwire.NewBlockHeader(prevH, merkleRoot, uint32(difficulty), startNonce)
+	d := blockchain.BigToCompact(&difficulty)
+	header := btcwire.NewBlockHeader(prevH, merkleRoot, d, startNonce)
 
 	msgBlock := btcwire.NewMsgBlock(header)
-	msgBlock.AddTransaction(coinbaseTx.MsgTx())
+	for _, tx := range txs {
+		msgBlock.AddTransaction(tx)
+	}
 
-	return msgBlock, nil
+	return msgBlock
+}
+
+func createMerkleRoot(txs []*btcwire.MsgTx) *btcwire.ShaHash {
+	txutil := []*btcutil.Tx{}
+	for _, tx := range txs {
+		convtx := btcutil.NewTx(tx)
+		txutil = append(txutil, convtx)
+	}
+
+	store := blockchain.BuildMerkleTreeStore(txutil)
+	// Create a merkleroot from a list of 1 transaction.
+	merkleRoot := store[len(store)-1]
+
+	return merkleRoot
 }

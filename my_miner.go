@@ -4,17 +4,16 @@ import (
 	"fmt"
 	"log"
 	"math/big"
-	"strconv"
+	"math/rand"
 
 	"github.com/PointCoin/btcjson"
 	"github.com/PointCoin/btcutil"
-	"github.com/PointCoin/btcwire"
 	"github.com/PointCoin/pointcoind/blockchain"
 )
 
 const (
-	rpcuser = "dave" // make this match your rpcuser and rpcpass in pointcoind.conf
-	rpcpass = "crypto$%bux"
+	rpcuser = "dave"        // This match your rpcuser and rpcpass in pointcoind.conf
+	rpcpass = "crypto$%bux" // and this too.
 	cert    = "/home/ubuntu/.pointcoind/rpc.cert"
 )
 
@@ -24,8 +23,7 @@ func main() {
 
 	// Declare variables to use in our main loop
 	var template *btcjson.GetBlockTemplateResult
-	var block *btcwire.MsgBlock
-	var difficulty uint64
+	var difficulty big.Int
 
 	var hashCounter int
 	var err error
@@ -35,7 +33,7 @@ func main() {
 
 	for { // Loop forever
 		// Get a new block template from pointcoind.
-		log.Printf("Updating block template\n")
+		log.Printf("Requesting a block template\n")
 		template, err = client.GetBlockTemplate(&btcjson.TemplateRequest{})
 		if err != nil {
 			log.Fatal(err)
@@ -48,36 +46,26 @@ func main() {
 		prevHash = template.PreviousHash
 
 		// difficulty target
-		difficulty = convertDifficulty(template.Bits) //[ convertDifficulty returns template.Bits in some useful form - could be bigint ] 
-		
+		difficulty = formatDiff(template.Bits)
+
 		// height of the next block (number of blocks between genesis block and next block)
 		height = template.Height
 
-		
-		block, err = createBlock(prevHash, difficulty, height)
-		if err != nil {
-			log.Fatal(err)
-		}
-		
-		txs = getNetworkTransactions(???) // returns the transactions from the network
+		txs := formatTransactions(template.Transactions) // returns the transactions from the network
+		msg := "Your computing ID"
 		a := "PsVSrUSQf72X6GWFQXJPxR7WSAPVRb1gWx"
-		coinbaseTx, err := CreateCoinbaseTx(height, a, msg) // address conversion moved into CreateCoinbaseTx
-		if err != nil {
-			return nil, err
-		}
-		
-		txs.insert(coinbaseTx) // probably not valid go, but whatever is needed
-		
-		// we'll provide hints for this in the instructions
-		store := blockchain.BuildMerkleTreeStore(txs)
-		// Create a merkleroot from a list of 1 transaction.
-		merkleRoot := store[len(store)-1]
+		coinbaseTx := CreateCoinbaseTx(height, a, msg) // address conversion moved into CreateCoinbaseTx
+
+		txs = prepend(coinbaseTx.MsgTx(), txs)
+
+		merkleRoot := createMerkleRoot(txs)
+
 		nonce := rand.Uint32()
-		block = CreateBlock(prevHash, merkleRoot, difficulty, nonce)
+		block := CreateBlock(prevHash, merkleRoot, difficulty, nonce, txs)
 
 		for attempts := 0; attempts < 10000; attempts++ {
 			// Hash the header (BlockSha defined in btcwire/blockheader.go)
-			hash := block.Header.BlockSha()
+			hash, _ := block.Header.BlockSha()
 			hashCounter += 1
 			if lessThanDiff(hash, difficulty) {
 				// Success! Send the whole block
@@ -89,12 +77,12 @@ func main() {
 					log.Println(errStr)
 					break
 				}
-				
-				log.Printf("Block Submitted! Hash: [%s] asbig [%s]\n", 
+
+				log.Printf("Block Submitted! Hash: [%s] as big [%s]\n",
 					hash, blockchain.ShaHashToBig(&hash).String())
 				break
 			}
-			
+
 			// Increment the nonce in the block's header. It might overflow, but that's
 			// no big deal.
 			block.Header.Nonce += 1
@@ -102,4 +90,3 @@ func main() {
 		}
 	}
 }
-
