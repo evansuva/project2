@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	rpcuser = "user" // This match your rpcuser and rpcpass in pointcoind.conf
-	rpcpass = "pass" // and this too.
+	rpcuser = "dave" // This match your rpcuser and rpcpass in pointcoind.conf
+	rpcpass = "crypto$%bux" // and this too.
 	cert    = "/home/ubuntu/.pointcoind/rpc.cert"
 )
 
@@ -56,7 +56,7 @@ func main() {
 
 		// returns the transactions from the network
 		txs := formatTransactions(template.Transactions)
-		msg := "Your computing ID"
+		msg := "dee2b"
 		a := "PsVSrUSQf72X6GWFQXJPxR7WSAPVRb1gWx"
 		coinbaseTx := CreateCoinbaseTx(height, a, msg)
 
@@ -67,8 +67,8 @@ func main() {
 
 		nonce := rand.Uint32()
 		block = CreateBlock(prevHash, merkleRoot, difficulty, nonce, txs)
-
-		for attempts := 0; attempts < 10000; attempts++ {
+		log.Printf("Searching with difficulty: %s (height: %d)\n", difficulty.String(), height) 
+		for attempts := 0; attempts < 1000000; attempts++ {
 			// Hash the header (BlockSha defined in btcwire/blockheader.go)
 			hash, _ := block.Header.BlockSha()
 			hashCounter += 1
