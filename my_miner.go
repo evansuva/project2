@@ -5,6 +5,7 @@ import (
 	"log"
 	"math/big"
 	"math/rand"
+	"time"
 
 	"github.com/PointCoin/btcjson"
 	"github.com/PointCoin/btcutil"
@@ -31,7 +32,6 @@ func main() {
 	var prevHash string
 	var height int64
 
-	var hashCounter int
 	var err error
 
 	for { // Loop forever
@@ -56,7 +56,7 @@ func main() {
 
 		// returns the transactions from the network
 		txs := formatTransactions(template.Transactions)
-		msg := "dee2b"
+	        msg := "dee2b-micro"
 		a := "PsVSrUSQf72X6GWFQXJPxR7WSAPVRb1gWx"
 		coinbaseTx := CreateCoinbaseTx(height, a, msg)
 
@@ -68,6 +68,8 @@ func main() {
 		nonce := rand.Uint32()
 		block = CreateBlock(prevHash, merkleRoot, difficulty, nonce, txs)
 		log.Printf("Searching with difficulty: %s (height: %d)\n", difficulty.String(), height) 
+		starttime := time.Now()
+  	        hashCounter := 0
 		for attempts := 0; attempts < 1000000; attempts++ {
 			// Hash the header (BlockSha defined in btcwire/blockheader.go)
 			hash, _ := block.Header.BlockSha()
@@ -92,5 +94,10 @@ func main() {
 			// no big deal.
 			block.Header.Nonce += 1
 		}
+		endtime := time.Now()
+		duration := endtime.Sub(starttime).Seconds()
+		rate := float64(hashCounter) / duration
+		log.Printf("Hashrate: %f attempts per second [%d ns per hash]\n", rate, 
+		           endtime.Sub(starttime).Nanoseconds() / int64(hashCounter))
 	}
 }
